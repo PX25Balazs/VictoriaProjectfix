@@ -1,1 +1,43 @@
+Dockerfile:
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY ["TaskManagementApp.csproj", "./"]
+RUN dotnet restore "TaskManagementApp.csproj"
+COPY . .
+RUN dotnet publish -c Release -o /app/publish
 
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "TaskManagementApp.dll"]
+
+
+docker-compose.yml:
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: task_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: taskdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: task_web
+    ports:
+      - "8080:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=taskdb;Username=postgres;Password=password
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
